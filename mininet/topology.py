@@ -4,21 +4,60 @@ Part of: ML-Enhanced SDN Emergency Communication Network
 
 Run on an SDN/Mininet Linux VM or environment:
     sudo mn --custom mininet/topology.py --topo emergency_topo --controller=remote,ip=127.0.0.1,port=6633 --switch ovs,protocols=OpenFlow13
+
+NOTE: Mininet is a Linux-only package. On Windows/macOS this file can be
+imported and syntax-checked safely; the stubs below replace every mininet
+symbol so no NameError is raised outside a real Mininet environment.
 """
+import sys as _sys
+
 try:
-    from mininet.topo import Topo
-    from mininet.net import Mininet
-    from mininet.node import RemoteController, OVSSwitch
-    from mininet.cli import CLI
-    from mininet.log import setLogLevel, info
-    from mininet.link import TCLink
+    from mininet.topo import Topo                          # type: ignore[import]
+    from mininet.net import Mininet                        # type: ignore[import]
+    from mininet.node import RemoteController, OVSSwitch   # type: ignore[import]
+    from mininet.cli import CLI                            # type: ignore[import]
+    from mininet.log import setLogLevel, info              # type: ignore[import]
+    from mininet.link import TCLink                        # type: ignore[import]
+    _MININET_AVAILABLE = True
 except ImportError:
-    # Allows module to be read and syntax-checked on Windows/non-Mininet hosts
-    class Topo:
+    # ── Stubs so the module is importable on Windows / non-Mininet hosts ── #
+    _MININET_AVAILABLE = False
+
+    class Topo:  # type: ignore[no-redef]
+        """Stub Topo base class."""
         def __init__(self, **opts): pass
         def addHost(self, name, **opts): return name
         def addSwitch(self, name, **opts): return name
         def addLink(self, node1, node2, **opts): pass
+
+    class Mininet:  # type: ignore[no-redef]
+        """Stub Mininet runner."""
+        def __init__(self, **kwargs): pass
+        def start(self): pass
+        def stop(self): pass
+        def pingAll(self): pass
+
+    class RemoteController:  # type: ignore[no-redef]
+        """Stub RemoteController."""
+        def __init__(self, name, **kwargs): pass
+
+    class OVSSwitch:  # type: ignore[no-redef]
+        """Stub OVSSwitch."""
+        pass
+
+    class CLI:  # type: ignore[no-redef]
+        """Stub CLI."""
+        def __init__(self, net): pass
+
+    class TCLink:  # type: ignore[no-redef]
+        """Stub TCLink."""
+        pass
+
+    def setLogLevel(level: str) -> None:  # type: ignore[no-redef]
+        pass
+
+    def info(msg: str) -> None:  # type: ignore[no-redef]
+        _sys.stdout.write(msg)
 
 
 class EmergencyCampusTopo(Topo):
@@ -71,7 +110,17 @@ topos = {"emergency_topo": (lambda: EmergencyCampusTopo())}
 
 
 def run_network():
-    """Direct runner script for Mininet CLI."""
+    """Direct runner script for Mininet CLI.
+
+    Must be run as root on a Linux host with Mininet installed:
+        sudo python mininet/topology.py
+    """
+    if not _MININET_AVAILABLE:
+        raise RuntimeError(
+            "Mininet is not installed. This script must be run on a Linux host "
+            "with Mininet installed (e.g. inside a Mininet VM).\n"
+            "Install: https://mininet.org/download/"
+        )
     topo = EmergencyCampusTopo()
     net = Mininet(
         topo=topo,
