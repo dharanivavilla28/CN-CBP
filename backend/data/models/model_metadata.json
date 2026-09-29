@@ -1,0 +1,161 @@
+{
+  "dataset": "CICIDS2017 (synthetic fallback if CSV missing)",
+  "training_samples": 12000,
+  "test_samples": 3000,
+  "total_samples": 15000,
+  "features": [
+    "Flow Duration",
+    "Total Fwd Packets",
+    "Total Backward Packets",
+    "Total Length of Fwd Packets",
+    "Total Length of Bwd Packets",
+    "Fwd Packet Length Mean",
+    "Bwd Packet Length Mean",
+    "Flow Bytes/s",
+    "Flow Packets/s",
+    "Flow IAT Mean",
+    "Fwd IAT Mean",
+    "Bwd IAT Mean",
+    "Packet Length Mean",
+    "Packet Length Std",
+    "Average Packet Size",
+    "Fwd Header Length",
+    "Bwd Header Length"
+  ],
+  "feature_count": 17,
+  "model": "RandomForestClassifier",
+  "n_estimators": 100,
+  "max_depth": 15,
+  "classes": [
+    "CONGESTED",
+    "HIGH_RISK",
+    "NORMAL"
+  ],
+  "train_test_split": "80/20",
+  "accuracy": 1.0,
+  "precision": 1.0,
+  "recall": 1.0,
+  "f1_score": 1.0,
+  "classification_report": {
+    "CONGESTED": {
+      "precision": 1.0,
+      "recall": 1.0,
+      "f1-score": 1.0,
+      "support": 750.0
+    },
+    "HIGH_RISK": {
+      "precision": 1.0,
+      "recall": 1.0,
+      "f1-score": 1.0,
+      "support": 450.0
+    },
+    "NORMAL": {
+      "precision": 1.0,
+      "recall": 1.0,
+      "f1-score": 1.0,
+      "support": 1800.0
+    },
+    "accuracy": 1.0,
+    "macro avg": {
+      "precision": 1.0,
+      "recall": 1.0,
+      "f1-score": 1.0,
+      "support": 3000.0
+    },
+    "weighted avg": {
+      "precision": 1.0,
+      "recall": 1.0,
+      "f1-score": 1.0,
+      "support": 3000.0
+    }
+  },
+  "confusion_matrix": [
+    [
+      750,
+      0,
+      0
+    ],
+    [
+      0,
+      450,
+      0
+    ],
+    [
+      0,
+      0,
+      1800
+    ]
+  ],
+  "feature_importance": [
+    {
+      "feature": "Total Fwd Packets",
+      "importance": 0.38617
+    },
+    {
+      "feature": "Total Backward Packets",
+      "importance": 0.343294
+    },
+    {
+      "feature": "Total Length of Bwd Packets",
+      "importance": 0.087974
+    },
+    {
+      "feature": "Total Length of Fwd Packets",
+      "importance": 0.076083
+    },
+    {
+      "feature": "Flow Bytes/s",
+      "importance": 0.060292
+    },
+    {
+      "feature": "Flow Packets/s",
+      "importance": 0.031438
+    },
+    {
+      "feature": "Flow Duration",
+      "importance": 0.012457
+    },
+    {
+      "feature": "Packet Length Mean",
+      "importance": 0.000284
+    },
+    {
+      "feature": "Fwd IAT Mean",
+      "importance": 0.000271
+    },
+    {
+      "feature": "Flow IAT Mean",
+      "importance": 0.000266
+    },
+    {
+      "feature": "Bwd Packet Length Mean",
+      "importance": 0.000261
+    },
+    {
+      "feature": "Bwd IAT Mean",
+      "importance": 0.000257
+    },
+    {
+      "feature": "Fwd Header Length",
+      "importance": 0.000257
+    },
+    {
+      "feature": "Packet Length Std",
+      "importance": 0.000253
+    },
+    {
+      "feature": "Fwd Packet Length Mean",
+      "importance": 0.000166
+    },
+    {
+      "feature": "Average Packet Size",
+      "importance": 0.000143
+    },
+    {
+      "feature": "Bwd Header Length",
+      "importance": 0.000133
+    }
+  ],
+  "train_time_seconds": 0.37,
+  "trained_at": "2026-09-29T14:45:01"
+}
