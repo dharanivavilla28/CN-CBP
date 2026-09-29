@@ -9,12 +9,22 @@ export function useNetworkSocket(onEventReceived) {
   const [lastMessage, setLastMessage] = useState(null);
   const socketRef = useRef(null);
   const reconnectTimeoutRef = useRef(null);
+  const onEventRef = useRef(onEventReceived);
+
+  useEffect(() => {
+    onEventRef.current = onEventReceived;
+  }, [onEventReceived]);
 
   const connect = useCallback(() => {
-    const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-    const wsUrl = `${protocol}//${window.location.host}/ws/network`;
+    const isDev = window.location.port === '5173';
+    const wsUrl = isDev
+      ? `ws://${window.location.hostname || 'localhost'}:8000/ws/network`
+      : `${window.location.protocol === 'https:' ? 'wss:' : 'ws:'}//${window.location.host}/ws/network`;
 
     try {
+      if (socketRef.current && socketRef.current.readyState === WebSocket.OPEN) {
+        return;
+      }
       const ws = new WebSocket(wsUrl);
       socketRef.current = ws;
 
@@ -26,8 +36,8 @@ export function useNetworkSocket(onEventReceived) {
         try {
           const payload = JSON.parse(event.data);
           setLastMessage(payload);
-          if (onEventReceived) {
-            onEventReceived(payload);
+          if (onEventRef.current) {
+            onEventRef.current(payload);
           }
         } catch (err) {
           console.error('Failed to parse WS payload', err);
@@ -36,21 +46,24 @@ export function useNetworkSocket(onEventReceived) {
 
       ws.onclose = () => {
         setIsConnected(false);
-        // Attempt reconnect after 2 seconds
+        if (reconnectTimeoutRef.current) clearTimeout(reconnectTimeoutRef.current);
         reconnectTimeoutRef.current = setTimeout(() => {
           connect();
         }, 2000);
       };
 
       ws.onerror = (err) => {
-        console.warn('WebSocket encountered error:', err);
-        ws.close();
+        console.warn('WebSocket encountered error, reconnecting...', err);
+        try {
+          ws.close();
+        } catch (_) {}
       };
     } catch (e) {
       console.error('WebSocket connection error:', e);
+      if (reconnectTimeoutRef.current) clearTimeout(reconnectTimeoutRef.current);
       reconnectTimeoutRef.current = setTimeout(connect, 3000);
     }
-  }, [onEventReceived]);
+  }, []);
 
   useEffect(() => {
     connect();

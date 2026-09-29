@@ -199,25 +199,33 @@ class RoutingEngine:
 
         path, cost = dijkstra(graph, source, destination, self.failed_links)
 
+        # Define route_key before any branch so it is always in scope
+        route_key = f"{source}→{destination}"
+
         if path is None:
             self._emit_event(
                 "ERROR",
                 f"No path: {source} → {destination}",
-                "All routes unavailable",
+                "All routes unavailable - NO PATH EXISTS",
             )
-            return {
-                "path": None,
+            route = {
+                "path": [],
+                "path_str": "NO PATH EXISTS",
                 "cost": float("inf"),
                 "hops": [],
+                "hop_count": 0,
+                "ml_adjusted": ml_adjusted,
                 "status": "NO_PATH",
                 "source": source,
                 "destination": destination,
                 "timestamp": time.time(),
+                "formula": self.ML_RISK_FORMULA,
             }
+            self.current_routes[route_key] = route
+            return route
 
         hops = explain_path(path, graph, self.links)
 
-        route_key = f"{source}→{destination}"
         old_route = self.current_routes.get(route_key)
 
         route = {
@@ -292,10 +300,7 @@ class RoutingEngine:
             static_graph, source, destination, self.failed_links
         )
 
-        # Plain Dijkstra (base cost, no ML)
-        plain_path, plain_cost = self.calculate_route(
-            source, destination, ml_adjusted=False
-        ).get("path"), 0.0
+        # Plain Dijkstra (base cost, no ML) — calculate once
         plain_route = self.calculate_route(source, destination, ml_adjusted=False)
         plain_path = plain_route["path"]
         plain_cost = plain_route["cost"]

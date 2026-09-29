@@ -131,6 +131,28 @@ const nodeTypes = {
   switchNode: SwitchNode,
 };
 
+const DEFAULT_POSITIONS = {
+  // Switches in central core
+  S1: { x: 260, y: 180 },
+  S2: { x: 480, y: 80 },
+  S3: { x: 300, y: 380 },
+  S4: { x: 620, y: 260 },
+  // Surrounding Emergency Hosts
+  Security: { x: 60, y: 140 },
+  ControlRoom: { x: 120, y: 260 },
+  Medical: { x: 480, y: -40 },
+  MainGate: { x: 180, y: 480 },
+  Admin: { x: 800, y: 180 },
+  BackGate: { x: 800, y: 340 },
+};
+
+const DEFAULT_ROUTE = {
+  path: ['Security', 'S1', 'S2', 'Medical'],
+  path_str: 'Security → S1 → S2 → Medical',
+  cost: 4.0,
+  hop_count: 3,
+};
+
 // ────────────────────────── Main Topology Page ────────────────────────── //
 
 export default function Topology({ networkState }) {
@@ -151,6 +173,7 @@ export default function Topology({ networkState }) {
   // Link Failure / Recovery State
   const [selectedLinkToFail, setSelectedLinkToFail] = useState('S1-S2');
   const [routeChangeAlert, setRouteChangeAlert] = useState(null);
+  const [sendError, setSendError] = useState(null);
 
   // Custom Topology Creation Form
   const [showAddNodeModal, setShowAddNodeModal] = useState(false);
@@ -177,32 +200,11 @@ export default function Topology({ networkState }) {
   const [savingLink, setSavingLink] = useState(false);
 
   // Current active route path
-  const currentRoute = networkState?.routes?.['Security→Medical'] || {
-    path: ['Security', 'S1', 'S2', 'Medical'],
-    path_str: 'Security → S1 → S2 → Medical',
-    cost: 4.0,
-  };
-
-  const activePath = currentRoute.path || [];
-
-  // Default coordinate layout for initial campus graph
-  const defaultPositions = useMemo(
-    () => ({
-      // Switches in central core
-      S1: { x: 260, y: 180 },
-      S2: { x: 480, y: 80 },
-      S3: { x: 300, y: 380 },
-      S4: { x: 620, y: 260 },
-      // Surrounding Emergency Hosts
-      Security: { x: 60, y: 140 },
-      ControlRoom: { x: 120, y: 260 },
-      Medical: { x: 480, y: -40 },
-      MainGate: { x: 180, y: 480 },
-      Admin: { x: 800, y: 180 },
-      BackGate: { x: 800, y: 340 },
-    }),
-    []
-  );
+  const currentRoute = networkState?.routes?.['Security→Medical'] || DEFAULT_ROUTE;
+  const isNoPath = currentRoute.status === 'NO_PATH';
+  const activePath = (!isNoPath && currentRoute.path) ? currentRoute.path : DEFAULT_ROUTE.path;
+  const activePathStr = currentRoute.path_str || DEFAULT_ROUTE.path_str;
+  const selectedNodeId = selectedItemType === 'node' ? selectedItem?.id : null;
 
   // Build React Flow nodes & edges from backend topology
   useEffect(() => {
@@ -212,13 +214,13 @@ export default function Topology({ networkState }) {
     const rawLinks = networkState.topology.links || [];
 
     const flowNodes = rawNodes.map((n, idx) => {
-      const pos = defaultPositions[n.id] || {
+      const pos = DEFAULT_POSITIONS[n.id] || {
         x: 200 + (idx % 3) * 220,
         y: 100 + Math.floor(idx / 3) * 160,
       };
 
       const isInPath = activePath.includes(n.id);
-      const isSelected = selectedItem?.id === n.id;
+      const isSelected = selectedNodeId === n.id;
 
       return {
         id: n.id,
@@ -290,7 +292,7 @@ export default function Topology({ networkState }) {
 
     setNodes(flowNodes);
     setEdges(flowEdges);
-  }, [networkState?.topology, activePath, selectedItem, defaultPositions, setNodes, setEdges]);
+  }, [networkState?.topology, activePathStr, selectedNodeId, setNodes, setEdges]);
 
   // Click on node
   const onNodeClick = useCallback(
@@ -348,6 +350,7 @@ export default function Topology({ networkState }) {
   const handleSendMessage = async (e) => {
     e.preventDefault();
     setIsSending(true);
+    setSendError(null);
 
     try {
       const res = await api.sendMessage({
@@ -357,19 +360,31 @@ export default function Topology({ networkState }) {
         priority: msgPriority,
       });
 
-      setLastDelivery(res.delivery);
+      if (res.status === 'SENT') {
+        setLastDelivery(res.delivery);
+        setSendError(null);
 
-      // Start traveling packet animation
-      setAnimatingPacket(true);
-      setPacketProgressIndex(0);
-      const pathLen = res.route?.path?.length || 4;
-      for (let i = 0; i < pathLen; i++) {
-        setPacketProgressIndex(i);
-        await new Promise((r) => setTimeout(r, 450));
+        // Start traveling packet animation
+        setAnimatingPacket(true);
+        setPacketProgressIndex(0);
+        const pathLen = res.route?.path?.length || 4;
+        for (let i = 0; i < pathLen; i++) {
+          setPacketProgressIndex(i);
+          await new Promise((r) => setTimeout(r, 450));
+        }
+        setAnimatingPacket(false);
+      } else {
+        setSendError(`Transmission failed: ${res.detail || 'Unknown error'}`);
       }
-      setAnimatingPacket(false);
     } catch (err) {
       console.error('Failed to send message:', err);
+      // Parse error detail from backend 400 response
+      let errMsg = 'No path exists from source to destination — all links may be failed.';
+      try {
+        const errJson = await err?.response?.json?.();
+        if (errJson?.detail) errMsg = errJson.detail;
+      } catch (_) {}
+      setSendError(errMsg);
     } finally {
       setIsSending(false);
     }
@@ -377,7 +392,10 @@ export default function Topology({ networkState }) {
 
   // Fail Link handler
   const handleFailLink = async () => {
-    const [source, target] = selectedLinkToFail.split('-');
+    // Split only on the first '-' so IDs with dashes are handled correctly
+    const dashIdx = selectedLinkToFail.indexOf('-');
+    const source = selectedLinkToFail.slice(0, dashIdx);
+    const target = selectedLinkToFail.slice(dashIdx + 1);
     const prevPath = currentRoute.path_str;
 
     try {
@@ -546,17 +564,34 @@ export default function Topology({ networkState }) {
 
           {/* Active Route Overlay Badge */}
           <div className="absolute top-4 left-4 z-10 p-3 rounded-xl bg-slate-950/85 border border-cyan-500/40 backdrop-blur-md font-mono text-xs shadow-xl">
-            <div className="flex items-center gap-2 text-cyan-400 font-bold mb-1">
-              <span className="w-2 h-2 rounded-full bg-cyan-400 animate-ping" />
-              ACTIVE DIJKSTRA ROUTE:
-            </div>
-            <div className="text-slate-200 font-bold flex items-center gap-1.5">
-              {currentRoute.path_str}
-            </div>
-            <div className="text-[10px] text-slate-400 mt-1 flex items-center justify-between gap-4">
-              <span>Total Cost: <b className="text-cyan-300">{currentRoute.cost}</b></span>
-              <span>Hops: <b className="text-emerald-300">{currentRoute.hop_count || 3}</b></span>
-            </div>
+            {isNoPath ? (
+              <>
+                <div className="flex items-center gap-2 text-red-400 font-bold mb-1">
+                  <span className="w-2 h-2 rounded-full bg-red-500 animate-ping" />
+                  ROUTING FAILURE:
+                </div>
+                <div className="text-red-300 font-black text-sm flex items-center gap-1.5">
+                  ⚠ NO PATH EXISTS
+                </div>
+                <div className="text-[10px] text-red-400/80 mt-1">
+                  All links between {currentRoute.source || 'Security'} and {currentRoute.destination || 'Medical'} are failed or unreachable.
+                </div>
+              </>
+            ) : (
+              <>
+                <div className="flex items-center gap-2 text-cyan-400 font-bold mb-1">
+                  <span className="w-2 h-2 rounded-full bg-cyan-400 animate-ping" />
+                  ACTIVE DIJKSTRA ROUTE:
+                </div>
+                <div className="text-slate-200 font-bold flex items-center gap-1.5">
+                  {activePathStr}
+                </div>
+                <div className="text-[10px] text-slate-400 mt-1 flex items-center justify-between gap-4">
+                  <span>Total Cost: <b className="text-cyan-300">{currentRoute.cost}</b></span>
+                  <span>Hops: <b className="text-emerald-300">{currentRoute.hop_count || activePath.length - 1}</b></span>
+                </div>
+              </>
+            )}
           </div>
 
           {/* Packet Flow Animation Indicator (Requirement 27) */}
@@ -846,6 +881,18 @@ export default function Topology({ networkState }) {
               <span>Path: <b className="text-slate-200">{(lastDelivery.route_path || []).join(' → ')}</b></span>
               <span>RTT: <b className="text-emerald-400">{lastDelivery.rtt_ms} ms</b></span>
               <span className="px-2 py-0.5 rounded bg-emerald-950 text-emerald-400 border border-emerald-800">DELIVERED</span>
+            </div>
+          </div>
+        )}
+
+        {/* No Path Error Display */}
+        {sendError && (
+          <div className="mt-4 p-3.5 rounded-xl bg-red-950/60 border border-red-600/60 font-mono text-xs flex items-start gap-3">
+            <XCircle className="w-4 h-4 text-red-400 mt-0.5 shrink-0" />
+            <div>
+              <div className="text-red-300 font-bold uppercase tracking-wide">TRANSMISSION FAILED — NO PATH EXISTS</div>
+              <div className="text-red-400/80 mt-0.5">{sendError}</div>
+              <div className="text-slate-400 mt-1 text-[11px]">Restore failed links using the Fault Injection panel above, then retry.</div>
             </div>
           </div>
         )}
